@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>地図クラフト工房 | 手書き地図プロンプトメーカー</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Kaisei+Decol:wght@400;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#e7d9bb;
+    --paper-deep:#c9ad7f;
+    --kraft-dark:#7a5a35;
+    --ink:#3a2e1f;
+    --stamp:#b6482e;
+    --moss:#5c6e46;
+    --cream:#f7f0dd;
+    --thread:#a98a56;
+    --shadow: 0 10px 24px rgba(58,46,31,.18);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:'Zen Kaku Gothic New',sans-serif;
+    color:var(--ink);
+    background:
+      radial-gradient(circle at 15% 10%, rgba(255,255,255,.15), transparent 40%),
+      repeating-linear-gradient(135deg, rgba(122,90,53,.05) 0 2px, transparent 2px 6px),
+      var(--paper);
+    min-height:100vh;
+    padding-bottom:60px;
+  }
+  header{
+    padding:28px 20px 18px;
+    text-align:center;
+    position:relative;
+  }
+  header h1{
+    font-family:'Kaisei Decol',serif;
+    font-size:clamp(24px,5vw,38px);
+    margin:0 0 6px;
+    letter-spacing:.03em;
+    color:var(--ink);
+    text-shadow: 2px 2px 0 rgba(255,255,255,.35);
+  }
+  header p{
+    margin:0;
+    font-size:13px;
+    color:var(--kraft-dark);
+    letter-spacing:.05em;
+  }
+  .torn-line{
+    height:14px;
+    margin:14px auto 0;
+    max-width:960px;
+    background: repeating-linear-gradient(90deg, var(--thread) 0 8px, transparent 8px 16px);
+    opacity:.5;
+  }
+  .wrap{
+    max-width:1180px;
+    margin:0 auto;
+    padding:24px 16px 0;
+    display:grid;
+    grid-template-columns: 1.5fr 1fr;
+    gap:22px;
+  }
+  @media (max-width: 880px){
+    .wrap{grid-template-columns:1fr;}
+  }
+  .card{
+    background:var(--cream);
+    border-radius:4px;
+    padding:20px;
+    box-shadow:var(--shadow);
+    position:relative;
+    border:1px solid rgba(122,90,53,.25);
+  }
+  .card::before{
+    content:"";
+    position:absolute;
+    inset:6px;
+    border:1.5px dashed rgba(122,90,53,.35);
+    pointer-events:none;
+    border-radius:2px;
+  }
+  .card h2{
+    font-family:'Kaisei Decol',serif;
+    font-size:18px;
+    margin:0 0 4px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .card h2 .num{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:24px;height:24px;
+    background:var(--stamp);
+    color:#fff;
+    border-radius:50%;
+    font-size:13px;
+    font-family:'Zen Kaku Gothic New';
+    font-weight:900;
+    transform:rotate(-6deg);
+  }
+  .subtext{font-size:12.5px;color:var(--kraft-dark);margin:0 0 14px;line-height:1.6;}
+
+  /* --- canvas area --- */
+  .drop-zone{
+    border:2.5px dashed var(--paper-deep);
+    border-radius:6px;
+    padding:16px;
+    text-align:center;
+    cursor:pointer;
+    background:repeating-linear-gradient(45deg, rgba(122,90,53,.03) 0 10px, transparent 10px 20px);
+    transition:.2s;
+  }
+  .drop-zone:hover{background:rgba(182,72,46,.06); border-color:var(--stamp);}
+  .drop-zone.has-image{padding:0;border-style:solid;overflow:hidden;}
+  .drop-zone input[type=file]{display:none;}
+  .drop-label-inner{padding:26px 10px;}
+  .drop-label-inner b{display:block;font-size:14px;margin-bottom:4px;}
+  .drop-label-inner span{font-size:12px;color:var(--kraft-dark);}
+  #canvasBox{position:relative;width:100%;line-height:0;}
+  #mapCanvas{width:100%;display:block;cursor:crosshair;touch-action:none;}
+  .canvas-toolbar{
+    display:flex;justify-content:space-between;align-items:center;
+    margin-top:10px;flex-wrap:wrap;gap:8px;
+  }
+  .hint-badge{
+    font-size:11.5px;background:var(--moss);color:#fff;padding:4px 10px;
+    border-radius:20px;letter-spacing:.02em;
+  }
+
+  /* --- buttons --- */
+  button, .btn{
+    font-family:'Zen Kaku Gothic New';
+    font-weight:700;
+    border:none;
+    cursor:pointer;
+    border-radius:20px;
+    padding:8px 16px;
+    font-size:13px;
+    transition:.15s;
+  }
+  .btn-primary{background:var(--stamp);color:#fff;box-shadow:0 4px 0 #833219;}
+  .btn-primary:hover{transform:translateY(1px);box-shadow:0 3px 0 #833219;}
+  .btn-ghost{background:transparent;color:var(--kraft-dark);border:1.5px solid var(--paper-deep);}
+  .btn-ghost:hover{background:rgba(122,90,53,.08);}
+  .btn-small{padding:5px 11px;font-size:11.5px;}
+  .btn-block{width:100%;padding:12px;font-size:14.5px;box-shadow:0 5px 0 #833219;}
+  .btn-block:hover{transform:translateY(2px);box-shadow:0 3px 0 #833219;}
+
+  /* --- marker list --- */
+  #markerList{list-style:none;margin:14px 0 0;padding:0;display:flex;flex-direction:column;gap:8px;max-height:230px;overflow-y:auto;}
+  #markerList li{
+    display:flex;align-items:center;gap:8px;
+    background:#fff;border:1px solid rgba(122,90,53,.2);
+    border-radius:6px;padding:6px 8px;
+  }
+  #markerList .pin-num{
+    width:22px;height:22px;flex:0 0 22px;
+    background:var(--stamp);color:#fff;border-radius:50% 50% 50% 0;
+    transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;
+    font-size:11px;font-weight:900;
+  }
+  #markerList .pin-num span{transform:rotate(45deg);}
+  #markerList input{
+    flex:1;border:none;border-bottom:1px dashed var(--paper-deep);
+    background:transparent;font-size:13px;padding:4px 2px;font-family:inherit;color:var(--ink);
+  }
+  #markerList input:focus{outline:none;border-color:var(--stamp);}
+  #markerList .del{background:none;border:none;color:var(--kraft-dark);font-size:16px;cursor:pointer;padding:0 4px;}
+  .empty-note{font-size:12.5px;color:var(--kraft-dark);text-align:center;padding:14px 0;}
+
+  /* --- style options --- */
+  .style-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;}
+  .style-opt{
+    border:1.5px solid var(--paper-deep);border-radius:6px;padding:9px 10px;
+    cursor:pointer;font-size:12.5px;background:#fff;line-height:1.5;
+  }
+  .style-opt.active{border-color:var(--stamp);background:rgba(182,72,46,.08);}
+  .style-opt b{display:block;font-size:13px;margin-bottom:2px;}
+
+  .field{margin-top:16px;}
+  .field label{display:block;font-size:13px;font-weight:700;margin-bottom:6px;}
+  textarea, select{
+    width:100%;font-family:inherit;font-size:13px;padding:9px 10px;
+    border:1.5px solid var(--paper-deep);border-radius:6px;background:#fff;color:var(--ink);
+    resize:vertical;
+  }
+  textarea:focus, select:focus{outline:none;border-color:var(--stamp);}
+
+  .toggle-row{display:flex;align-items:center;gap:8px;margin-top:4px;}
+  .toggle-row input[type=checkbox]{width:17px;height:17px;accent-color:var(--stamp);}
+  .toggle-row label{font-size:13px;font-weight:700;margin:0;}
+
+  #charBlock{margin-top:10px;display:none;}
+  #charPreviewWrap{display:flex;align-items:center;gap:10px;margin-top:8px;}
+  #charPreview{width:52px;height:52px;object-fit:cover;border-radius:6px;border:1.5px solid var(--paper-deep);display:none;}
+
+  .promptOut{
+    margin-top:10px;white-space:pre-wrap;font-size:12.8px;line-height:1.7;
+    background:#fff;border:1.5px solid var(--paper-deep);border-radius:6px;
+    padding:12px;max-height:260px;overflow-y:auto;font-family:'Zen Kaku Gothic New';
+  }
+  .result-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+  .copied-flag{font-size:11.5px;color:var(--moss);font-weight:700;margin-left:6px;opacity:0;transition:.2s;}
+  .copied-flag.show{opacity:1;}
+
+  footer{text-align:center;font-size:11.5px;color:var(--kraft-dark);margin-top:34px;opacity:.8;}
+</style>
+<link rel="apple-touch-icon" href="./icon.png">
+</head>
+<body>
+
+<header>
+  <h1>🗺️ 地図クラフト工房</h1>
+  <p>地図をアップ → お店にピンを打つ → クラフト風加工プロンプトをつくる</p>
+  <div class="torn-line"></div>
+</header>
+
+<div class="wrap">
+
+  <!-- LEFT: MAP CANVAS -->
+  <div class="card">
+    <h2><span class="num">1</span>地図画像を貼る</h2>
+    <p class="subtext">Googleマップのスクリーンショットなどをアップロード。画像の上をタップ／クリックするとピンが立ちます。</p>
+
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept="image/*">
+      <div class="drop-label-inner" id="dropLabelInner">
+        <b>📍 地図画像をここにドラッグ、またはタップして選択</b>
+        <span>PNG / JPG（スクリーンショットでOK）</span>
+      </div>
+      <div id="canvasBox" style="display:none;">
+        <canvas id="mapCanvas"></canvas>
+      </div>
+    </div>
+
+    <div class="canvas-toolbar" id="canvasToolbar" style="display:none;">
+      <span class="hint-badge" id="markerCountBadge">ピン 0件</span>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-ghost btn-small" id="undoBtn">1つ戻す</button>
+        <button class="btn-ghost btn-small" id="clearBtn">全消去</button>
+        <button class="btn-ghost btn-small" id="rechooseBtn">画像を変更</button>
+      </div>
+    </div>
+
+    <ul id="markerList"></ul>
+    <p class="empty-note" id="emptyNote">まだピンがありません。地図をタップしてお店の場所を指定してください。</p>
+  </div>
+
+  <!-- RIGHT: SETTINGS -->
+  <div class="card">
+    <h2><span class="num">2</span>加工の設定</h2>
+    <p class="subtext">仕上がりのテイストと、キャラクター／ロゴを入れるかを選びます。</p>
+
+    <div class="style-grid" id="styleGrid">
+      <div class="style-opt active" data-style="craft"><b>紙クラフト風</b>切り紙・厚紙ジオラマの立体感</div>
+      <div class="style-opt" data-style="diorama"><b>ミニチュア風</b>ジオラマ・箱庭のような可愛さ</div>
+      <div class="style-opt" data-style="felt"><b>フェルト刺繍風</b>あたたかい手芸のタッチ</div>
+      <div class="style-opt" data-style="watercolor"><b>水彩イラスト風</b>やさしい手描き地図</div>
+    </div>
+
+    <div class="toggle-row" style="margin-top:16px;">
+      <input type="checkbox" id="charToggle">
+      <label for="charToggle">キャラクター・ロゴ画像を追加する</label>
+    </div>
+    <div id="charBlock">
+      <input type="file" id="charInput" accept="image/*" style="font-size:12px;">
+      <div id="charPreviewWrap">
+        <img id="charPreview" alt="キャラクター画像プレビュー">
+      </div>
+      <div class="field">
+        <label>配置方法</label>
+        <select id="charPlacement">
+          <option value="allpins">すべてのピンの場所に置く</option>
+          <option value="onepin">1つのピンの場所だけに置く</option>
+          <option value="corner">地図の隅にロゴとして置く</option>
+        </select>
+      </div>
+      <div class="field" id="onePinField" style="display:none;">
+        <label>配置するピン番号</label>
+        <select id="onePinSelect"></select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>お店・地図のタイトル（任意）</label>
+      <textarea id="mapTitle" rows="1" placeholder="例）〇〇商店街 まわり方マップ"></textarea>
+    </div>
+
+    <div class="field">
+      <label>追加の要望（任意）</label>
+      <textarea id="extraNote" rows="2" placeholder="例）道路は少し太めに、全体をあたたかい配色で"></textarea>
+    </div>
+
+    <div class="field">
+      <button class="btn-primary btn-block" id="generateBtn">✂️ プロンプトを作成する</button>
+    </div>
+
+    <div id="resultBlock" style="display:none;">
+      <h2 style="margin-top:22px;"><span class="num">3</span>チャッピー／ジェミニに渡す</h2>
+      <p class="subtext">下のプロンプトと、①ピン入り地図画像（②キャラ/ロゴ画像）をチャットに貼り付けてください。</p>
+      <div class="promptOut" id="promptOut"></div>
+      <div class="result-actions">
+        <button class="btn-primary btn-small" id="copyPromptBtn">プロンプトをコピー<span class="copied-flag" id="copyFlag1">コピーしました</span></button>
+        <button class="btn-ghost btn-small" id="downloadImgBtn">①ピン入り地図をダウンロード</button>
+        <button class="btn-ghost btn-small" id="downloadCharBtn" style="display:none;">②キャラ/ロゴ画像をダウンロード</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>地図クラフト工房 — 画像加工はChatGPT / Geminiにおまかせ。このアプリは下準備だけを担当します。</footer>
+
+<script>
+(function(){
+  const dropZone = document.getElementById('dropZone');
+  const fileInput = document.getElementById('fileInput');
+  const dropLabelInner = document.getElementById('dropLabelInner');
+  const canvasBox = document.getElementById('canvasBox');
+  const canvas = document.getElementById('mapCanvas');
+  const ctx = canvas.getContext('2d');
+  const canvasToolbar = document.getElementById('canvasToolbar');
+  const markerList = document.getElementById('markerList');
+  const emptyNote = document.getElementById('emptyNote');
+  const markerCountBadge = document.getElementById('markerCountBadge');
+
+  let img = new Image();
+  let hasImage = false;
+  let markers = []; // {x,y (0-1 relative), label}
+  let naturalW=0, naturalH=0;
+
+  function loadImageFile(file){
+    if(!file || !file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      img = new Image();
+      img.onload = () => {
+        naturalW = img.naturalWidth;
+        naturalH = img.naturalHeight;
+        canvas.width = naturalW;
+        canvas.height = naturalH;
+        hasImage = true;
+        dropZone.classList.add('has-image');
+        dropLabelInner.style.display='none';
+        canvasBox.style.display='block';
+        canvasToolbar.style.display='flex';
+        markers = [];
+        redraw();
+        updateMarkerUI();
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  dropZone.addEventListener('click', (e)=>{
+    if(hasImage) return;
+    fileInput.click();
+  });
+  document.getElementById('rechooseBtn').addEventListener('click', ()=>fileInput.click());
+  fileInput.addEventListener('change', e=> loadImageFile(e.target.files[0]));
+  dropZone.addEventListener('dragover', e=>{e.preventDefault(); dropZone.style.borderColor='var(--stamp)';});
+  dropZone.addEventListener('dragleave', e=>{dropZone.style.borderColor='';});
+  dropZone.addEventListener('drop', e=>{
+    e.preventDefault();
+    if(e.dataTransfer.files && e.dataTransfer.files[0]) loadImageFile(e.dataTransfer.files[0]);
+  });
+  window.addEventListener('paste', e=>{
+    const items = e.clipboardData && e.clipboardData.items;
+    if(!items) return;
+    for(const it of items){
+      if(it.type.startsWith('image/')){ loadImageFile(it.getAsFile()); break; }
+    }
+  });
+
+  function redraw(){
+    if(!hasImage) return;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(img,0,0,naturalW,naturalH);
+    const pinSize = Math.max(naturalW,naturalH) * 0.045;
+    markers.forEach((m,i)=>{
+      const x = m.x*naturalW, y = m.y*naturalH;
+      // pin drop shape
+      ctx.save();
+      ctx.translate(x,y);
+      ctx.beginPath();
+      ctx.arc(0, -pinSize*0.9, pinSize*0.6, 0, Math.PI*2);
+      ctx.fillStyle = '#b6482e';
+      ctx.shadowColor='rgba(0,0,0,.35)';
+      ctx.shadowBlur=pinSize*0.2;
+      ctx.fill();
+      ctx.shadowBlur=0;
+      // triangle tip
+      ctx.beginPath();
+      ctx.moveTo(-pinSize*0.35, -pinSize*0.55);
+      ctx.lineTo(pinSize*0.35, -pinSize*0.55);
+      ctx.lineTo(0, 0);
+      ctx.closePath();
+      ctx.fillStyle='#b6482e';
+      ctx.fill();
+      // number
+      ctx.fillStyle='#fff';
+      ctx.font = `900 ${pinSize*0.65}px sans-serif`;
+      ctx.textAlign='center';
+      ctx.textBaseline='middle';
+      ctx.fillText(i+1, 0, -pinSize*0.9);
+      ctx.restore();
+    });
+  }
+
+  function getRelCoords(clientX, clientY){
+    const rect = canvas.getBoundingClientRect();
+    const relX = (clientX - rect.left) / rect.width;
+    const relY = (clientY - rect.top) / rect.height;
+    return {x: Math.min(Math.max(relX,0),1), y: Math.min(Math.max(relY,0),1)};
+  }
+
+  canvas.addEventListener('click', e=>{
+    if(!hasImage) return;
+    const {x,y} = getRelCoords(e.clientX, e.clientY);
+    markers.push({x,y,label:''});
+    redraw();
+    updateMarkerUI();
+  });
+
+  document.getElementById('undoBtn').addEventListener('click', ()=>{
+    markers.pop();
+    redraw();
+    updateMarkerUI();
+  });
+  document.getElementById('clearBtn').addEventListener('click', ()=>{
+    markers = [];
+    redraw();
+    updateMarkerUI();
+  });
+
+  function updateMarkerUI(){
+    markerCountBadge.textContent = `ピン ${markers.length}件`;
+    markerList.innerHTML = '';
+    emptyNote.style.display = markers.length ? 'none' : 'block';
+    markers.forEach((m,i)=>{
+      const li = document.createElement('li');
+      li.innerHTML = `<span class="pin-num"><span>${i+1}</span></span>
+        <input type="text" placeholder="お店・場所の名前（任意）" value="${m.label.replace(/"/g,'&quot;')}">
+        <button class="del" title="削除">×</button>`;
+      li.querySelector('input').addEventListener('input', ev=>{
+        markers[i].label = ev.target.value;
+      });
+      li.querySelector('.del').addEventListener('click', ()=>{
+        markers.splice(i,1);
+        redraw();
+        updateMarkerUI();
+      });
+      markerList.appendChild(li);
+    });
+    // update one-pin select options
+    const onePinSelect = document.getElementById('onePinSelect');
+    onePinSelect.innerHTML = markers.map((m,i)=>`<option value="${i}">ピン${i+1}${m.label?'：'+m.label:''}</option>`).join('');
+  }
+
+  // style selection
+  const styleGrid = document.getElementById('styleGrid');
+  let selectedStyle = 'craft';
+  const styleTexts = {
+    craft: '切り紙・厚紙を重ねたようなペーパークラフト風。建物や道路に立体的な紙の質感と柔らかい影をつける',
+    diorama: 'ミニチュアジオラマ風。箱庭のような可愛らしい立体感で、被写界深度の浅いミニチュア撮影のような雰囲気',
+    felt: 'フェルト生地と刺繍で作ったような手芸風。縫い目やフェルトの毛羽立ち感を活かした温かみのあるタッチ',
+    watercolor: 'やさしい水彩イラスト風。手描きの線と滲みを活かした、あたたかみのある地図イラスト'
+  };
+  styleGrid.querySelectorAll('.style-opt').forEach(opt=>{
+    opt.addEventListener('click', ()=>{
+      styleGrid.querySelectorAll('.style-opt').forEach(o=>o.classList.remove('active'));
+      opt.classList.add('active');
+      selectedStyle = opt.dataset.style;
+    });
+  });
+
+  // character toggle
+  const charToggle = document.getElementById('charToggle');
+  const charBlock = document.getElementById('charBlock');
+  const charInput = document.getElementById('charInput');
+  const charPreview = document.getElementById('charPreview');
+  const charPlacement = document.getElementById('charPlacement');
+  const onePinField = document.getElementById('onePinField');
+  let charDataUrl = null;
+
+  charToggle.addEventListener('change', ()=>{
+    charBlock.style.display = charToggle.checked ? 'block' : 'none';
+  });
+  charInput.addEventListener('change', e=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ev=>{
+      charDataUrl = ev.target.result;
+      charPreview.src = charDataUrl;
+      charPreview.style.display='block';
+    };
+    reader.readAsDataURL(file);
+  });
+  charPlacement.addEventListener('change', ()=>{
+    onePinField.style.display = charPlacement.value === 'onepin' ? 'block' : 'none';
+  });
+
+  // generate prompt
+  const generateBtn = document.getElementById('generateBtn');
+  const resultBlock = document.getElementById('resultBlock');
+  const promptOut = document.getElementById('promptOut');
+
+  generateBtn.addEventListener('click', ()=>{
+    if(!hasImage){
+      alert('先に地図画像をアップロードしてください。');
+      return;
+    }
+    const title = document.getElementById('mapTitle').value.trim();
+    const extra = document.getElementById('extraNote').value.trim();
+
+    let markerLines = markers.map((m,i)=> `・ピン${i+1}${m.label ? '（'+m.label+'）' : ''}：赤いピンマーカーの位置`).join('\n');
+    if(!markers.length) markerLines = '（ピンは指定されていません。地図全体を加工してください）';
+
+    let charLine = '';
+    if(charToggle.checked && charDataUrl){
+      if(charPlacement.value === 'allpins'){
+        charLine = '\n\n▼キャラクター／ロゴ画像について\n添付した2枚目の画像（キャラクター・ロゴ）を、すべてのピンの場所に小さく配置してください。';
+      } else if(charPlacement.value === 'onepin'){
+        const idx = parseInt(document.getElementById('onePinSelect').value || '0',10);
+        charLine = `\n\n▼キャラクター／ロゴ画像について\n添付した2枚目の画像（キャラクター・ロゴ）を、ピン${idx+1}${markers[idx] && markers[idx].label ? '（'+markers[idx].label+'）' : ''}の場所にだけ配置してください。`;
+      } else {
+        charLine = '\n\n▼キャラクター／ロゴ画像について\n添付した2枚目の画像（キャラクター・ロゴ）を、地図の隅（右下など邪魔にならない位置）にロゴとして配置してください。';
+      }
+    }
+
+    const prompt =
+`添付した1枚目の画像は地図のスクリーンショットに赤いピンマーカーを追加したものです。
+この地図画像全体を、${styleTexts[selectedStyle]}に加工してください。
+
+▼ピンの位置について
+地図上の赤いピンは目印です。ピンの立体感はそのまま活かしつつ、加工後のイラストでもピンの位置に何の場所かがわかる小さな目印（旗やアイコンなど）を残してください。
+${markerLines}${charLine}
+
+▼その他の指定
+・地名や建物名などの文字情報は読み取れる範囲でイラストに残す
+・道路や川などの地図の構造はできるだけ保ったまま、全体を${selectedStyle==='craft'?'紙細工の立体作品':selectedStyle==='diorama'?'ミニチュアジオラマ':selectedStyle==='felt'?'フェルトの手芸作品':'水彩イラスト'}に見えるように仕上げる
+・全体の縦横比は元の地図画像と同じにする${title ? `\n・タイトルとして「${title}」を作品内のどこかに入れる（入れられそうであれば）` : ''}${extra ? `\n・${extra}` : ''}`;
+
+    promptOut.textContent = prompt;
+    resultBlock.style.display = 'block';
+    resultBlock.scrollIntoView({behavior:'smooth', block:'start'});
+
+    document.getElementById('downloadCharBtn').style.display = (charToggle.checked && charDataUrl) ? 'inline-block' : 'none';
+  });
+
+  document.getElementById('copyPromptBtn').addEventListener('click', ()=>{
+    navigator.clipboard.writeText(promptOut.textContent).then(()=>{
+      const flag = document.getElementById('copyFlag1');
+      flag.classList.add('show');
+      setTimeout(()=>flag.classList.remove('show'), 1500);
+    });
+  });
+
+  document.getElementById('downloadImgBtn').addEventListener('click', ()=>{
+    const link = document.createElement('a');
+    link.download = 'map-with-pins.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  });
+
+  document.getElementById('downloadCharBtn').addEventListener('click', ()=>{
+    if(!charDataUrl) return;
+    const link = document.createElement('a');
+    link.download = 'character-logo.png';
+    link.href = charDataUrl;
+    link.click();
+  });
+
+})();
+</script>
+
+<script>
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.getRegistrations().then(regs=>{
+    regs.forEach(r=>r.unregister());
+  }).then(()=>{
+    navigator.serviceWorker.register('./sw.js');
+  });
+}
+</script>
+</body>
+</html>
