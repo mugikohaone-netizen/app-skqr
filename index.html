@@ -153,7 +153,7 @@
   .btn-block:hover{transform:translateY(2px);box-shadow:0 3px 0 #833219;}
 
   /* --- marker list --- */
-  #markerList{list-style:none;margin:14px 0 0;padding:0;display:flex;flex-direction:column;gap:8px;max-height:230px;overflow-y:auto;}
+  #markerList{list-style:none;margin:14px 0 0;padding:0;display:flex;flex-direction:column;gap:8px;max-height:360px;overflow-y:auto;}
   #markerList li{
     display:flex;align-items:center;gap:8px;
     background:#fff;border:1px solid rgba(122,90,53,.2);
@@ -166,12 +166,20 @@
     font-size:11px;font-weight:900;
   }
   #markerList .pin-num span{transform:rotate(45deg);}
-  #markerList input{
-    flex:1;border:none;border-bottom:1px dashed var(--paper-deep);
+  #markerList li{align-items:flex-start;}
+  #markerList .pin-num{margin-top:2px;}
+  #markerList .m-fields{flex:1;display:flex;flex-direction:column;gap:5px;min-width:0;}
+  #markerList .m-row{display:flex;gap:6px;align-items:center;}
+  #markerList input, #markerList textarea{
+    border:none;border-bottom:1px dashed var(--paper-deep);
     background:transparent;font-size:13px;padding:4px 2px;font-family:inherit;color:var(--ink);
+    resize:none;
   }
-  #markerList input:focus{outline:none;border-color:var(--stamp);}
-  #markerList .del{background:none;border:none;color:var(--kraft-dark);font-size:16px;cursor:pointer;padding:0 4px;}
+  #markerList input.m-label{flex:1;font-weight:700;min-width:0;}
+  #markerList input.m-time{width:112px;flex:0 0 auto;color:var(--stamp);font-size:12px;}
+  #markerList textarea.m-note{width:100%;font-size:12px;color:var(--kraft-dark);}
+  #markerList input:focus, #markerList textarea:focus{outline:none;border-color:var(--stamp);}
+  #markerList .del{background:none;border:none;color:var(--kraft-dark);font-size:16px;cursor:pointer;padding:0 4px;margin-top:2px;}
   .empty-note{font-size:12.5px;color:var(--kraft-dark);text-align:center;padding:14px 0;}
 
   /* --- style options --- */
@@ -241,6 +249,7 @@
 
     <div class="canvas-toolbar" id="canvasToolbar" style="display:none;">
       <span class="hint-badge" id="markerCountBadge">ピン 0件</span>
+      <span class="hint-badge" style="background:var(--stamp);">📸 完成後はこの地図をスクショしてね</span>
       <div style="display:flex;gap:8px;">
         <button class="btn-ghost btn-small" id="undoBtn">1つ戻す</button>
         <button class="btn-ghost btn-small" id="clearBtn">全消去</button>
@@ -248,6 +257,7 @@
       </div>
     </div>
 
+    <p class="subtext" id="markerListHint" style="display:none;margin-top:4px;">ピンごとに名前・時間帯・メッセージを入力できます（例：10:00〜12:00／ここは役場になります）。</p>
     <ul id="markerList"></ul>
     <p class="empty-note" id="emptyNote">まだピンがありません。地図をタップしてお店の場所を指定してください。</p>
   </div>
@@ -307,9 +317,9 @@
       <div class="promptOut" id="promptOut"></div>
       <div class="result-actions">
         <button class="btn-primary btn-small" id="copyPromptBtn">プロンプトをコピー<span class="copied-flag" id="copyFlag1">コピーしました</span></button>
-        <button class="btn-ghost btn-small" id="downloadImgBtn">①ピン入り地図をダウンロード</button>
         <button class="btn-ghost btn-small" id="downloadCharBtn" style="display:none;">②キャラ/ロゴ画像をダウンロード</button>
       </div>
+      <p class="subtext" style="margin-top:10px;">📸 ①の地図画像は、上のピン入り地図をそのまま<b>スクリーンショット</b>して使ってください（ダウンロードボタンは使いません）。</p>
     </div>
   </div>
 </div>
@@ -331,7 +341,7 @@
 
   let img = new Image();
   let hasImage = false;
-  let markers = []; // {x,y (0-1 relative), label}
+  let markers = []; // {x,y (0-1 relative), label, time, note}
   let naturalW=0, naturalH=0;
 
   function loadImageFile(file){
@@ -423,7 +433,7 @@
   canvas.addEventListener('click', e=>{
     if(!hasImage) return;
     const {x,y} = getRelCoords(e.clientX, e.clientY);
-    markers.push({x,y,label:''});
+    markers.push({x,y,label:'',time:'',note:''});
     redraw();
     updateMarkerUI();
   });
@@ -443,14 +453,25 @@
     markerCountBadge.textContent = `ピン ${markers.length}件`;
     markerList.innerHTML = '';
     emptyNote.style.display = markers.length ? 'none' : 'block';
+    document.getElementById('markerListHint').style.display = markers.length ? 'block' : 'none';
     markers.forEach((m,i)=>{
+      const esc = s => (s||'').replace(/"/g,'&quot;');
       const li = document.createElement('li');
       li.innerHTML = `<span class="pin-num"><span>${i+1}</span></span>
-        <input type="text" placeholder="お店・場所の名前（任意）" value="${m.label.replace(/"/g,'&quot;')}">
+        <div class="m-fields">
+          <div class="m-row">
+            <input type="text" class="m-label" placeholder="お店・場所の名前（任意）" value="${esc(m.label)}">
+            <input type="text" class="m-time" placeholder="例）10:00〜12:00" value="${esc(m.time)}">
+          </div>
+          <textarea class="m-note" rows="1" placeholder="メッセージ（例：この時間はここが役場になります）">${esc(m.note)}</textarea>
+        </div>
         <button class="del" title="削除">×</button>`;
-      li.querySelector('input').addEventListener('input', ev=>{
-        markers[i].label = ev.target.value;
-      });
+      li.querySelector('.m-label').addEventListener('input', ev=>{ markers[i].label = ev.target.value; });
+      li.querySelector('.m-time').addEventListener('input', ev=>{ markers[i].time = ev.target.value; });
+      const noteEl = li.querySelector('.m-note');
+      const autoGrow = ()=>{ noteEl.style.height='auto'; noteEl.style.height=(noteEl.scrollHeight)+'px'; };
+      noteEl.addEventListener('input', ev=>{ markers[i].note = ev.target.value; autoGrow(); });
+      requestAnimationFrame(autoGrow);
       li.querySelector('.del').addEventListener('click', ()=>{
         markers.splice(i,1);
         redraw();
@@ -520,7 +541,12 @@
     const title = document.getElementById('mapTitle').value.trim();
     const extra = document.getElementById('extraNote').value.trim();
 
-    let markerLines = markers.map((m,i)=> `・ピン${i+1}${m.label ? '（'+m.label+'）' : ''}：赤いピンマーカーの位置`).join('\n');
+    let markerLines = markers.map((m,i)=>{
+      let line = `・ピン${i+1}${m.label ? '（'+m.label+'）' : ''}：赤いピンマーカーの位置`;
+      if(m.time) line += `\n　時間帯：${m.time}`;
+      if(m.note) line += `\n　メッセージ：${m.note}`;
+      return line;
+    }).join('\n');
     if(!markers.length) markerLines = '（ピンは指定されていません。地図全体を加工してください）';
 
     let charLine = '';
@@ -531,7 +557,7 @@
         const idx = parseInt(document.getElementById('onePinSelect').value || '0',10);
         charLine = `\n\n▼キャラクター／ロゴ画像について\n添付した2枚目の画像（キャラクター・ロゴ）を、ピン${idx+1}${markers[idx] && markers[idx].label ? '（'+markers[idx].label+'）' : ''}の場所にだけ配置してください。`;
       } else {
-        charLine = '\n\n▼キャラクター／ロゴ画像について\n添付した2枚目の画像（キャラクター・ロゴ）を、地図の隅（右下など邪魔にならない位置）にロゴとして配置してください。';
+        charLine = '\n\n▼キャラクター／ロゴ画像について\n添付した2枚目の画像（キャラクター・ロゴ）を、地図の左上の隅に大きめのサイズでどーんと目立つように配置してください。小さな飾りではなく、地図の主役の一つとして視認性高く配置してください。';
       }
     }
 
@@ -541,6 +567,7 @@
 
 ▼ピンの位置について
 地図上の赤いピンは目印です。ピンの立体感はそのまま活かしつつ、加工後のイラストでもピンの位置に何の場所かがわかる小さな目印（旗やアイコンなど）を残してください。
+「時間帯」や「メッセージ」が書かれているピンは、その内容を小さな吹き出しや立て札・のぼり旗のようなイラストにして、ピンのそばに添えてください（例：「10:00〜12:00 ここが役場になります」）。
 ${markerLines}${charLine}
 
 ▼その他の指定
@@ -561,13 +588,6 @@ ${markerLines}${charLine}
       flag.classList.add('show');
       setTimeout(()=>flag.classList.remove('show'), 1500);
     });
-  });
-
-  document.getElementById('downloadImgBtn').addEventListener('click', ()=>{
-    const link = document.createElement('a');
-    link.download = 'map-with-pins.png';
-    link.href = canvas.toDataURL('image/png');
-    link.click();
   });
 
   document.getElementById('downloadCharBtn').addEventListener('click', ()=>{
